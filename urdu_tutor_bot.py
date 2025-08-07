@@ -42,8 +42,7 @@ conversation = ConversationChain(
     llm=llm,
     prompt=prompt,
     memory=st.session_state.memory,
-    input_key="input",
-    memory_key="history"
+    input_key="input"
 )
 
 # Function to convert text to speech using gTTS with Urdu support

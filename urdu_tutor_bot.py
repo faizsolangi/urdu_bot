@@ -12,6 +12,7 @@ from io import BytesIO
 import asyncio
 import streamlit.components.v1 as components
 from openai import OpenAI
+import re
 
 # Load environment variables
 load_dotenv()
@@ -30,7 +31,8 @@ You are a 5-year-old Urdu letter tutor teaching 5-year-old children. Speak like 
 
 - Accept questions in mixed English and Urdu, like "What is ا?" or "ب kya hai?", but always respond only in simple, pure Urdu.
 - Teach Urdu letters in a fun, story-like way to make learning exciting.
-- Include one short example with every answer, using animals, fruits, or toys, like "ا آم کی ہے!".
+- For every letter, include one short example word using animals, fruits, or toys, like "ا آم کی ہے!".
+- Clearly state the letter and the example word in each response so they can be shown in big, bold text.
 - Never use difficult words; keep language very simple for 5-year-olds.
 - Keep responses to one or two short sentences.
 - Talk like a 5-year-old, using playful phrases like "واہ، ا بہت مزے کا ہے!".
@@ -94,6 +96,25 @@ def play_audio(audio_base64):
     """
     components.html(audio_html, height=0)
 
+# Function to style the letter and example word in big, bold text
+def style_response(response_text):
+    # Find the letter and example word using regex (assuming single Urdu letter and a word)
+    letter_match = re.search(r'[ا-ے]', response_text)
+    word_match = re.search(r'\b(?!آؤ|سیکھیں|ہیلو|واہ|مزے|کیا|ہائیں|پرندے|حرف|اب|بہت)\w+\b', response_text)
+    
+    letter = letter_match.group(0) if letter_match else ""
+    word = word_match.group(0) if word_match else ""
+    
+    # Style the letter and word in big, bold text
+    if letter and word:
+        styled_response = response_text.replace(
+            letter, f"<span style='font-size: 32px; font-weight: bold;'>{letter}</span>"
+        ).replace(
+            word, f"<span style='font-size: 28px; font-weight: bold;'>{word}</span>"
+        )
+        return styled_response
+    return response_text
+
 # Streamlit app
 st.title("بچوں کے لیے اردو حروف ٹیوٹر")
 st.write("ہیلو! میں تمہارا 5 سال کا اردو حروف کا ٹیچر ہوں! مجھ سے حروف کے بارے میں پوچھو، جیسے 'ا کیا ہے؟' یا 'What is ب?' بول کر یا ٹائپ کر کے پوچھو۔ آؤ، سیکھیں!")
@@ -101,9 +122,12 @@ st.write("ہیلو! میں تمہارا 5 سال کا اردو حروف کا ٹ�
 # Display conversation history
 for message in st.session_state.messages:
     with st.chat_message(message["role"]):
-        st.markdown(message["content"])
-        if message["role"] == "assistant" and "audio" in message:
-            play_audio(message["audio"])
+        if message["role"] == "assistant":
+            st.markdown(style_response(message["content"]), unsafe_allow_html=True)
+            if "audio" in message:
+                play_audio(message["audio"])
+        else:
+            st.markdown(message["content"])
 
 # Voice input
 st.write("اپنا سوال بولو:")
@@ -148,7 +172,7 @@ if input_text:
         if cache_key in st.session_state.response_cache:
             response, audio_base64 = st.session_state.response_cache[cache_key]
             with st.chat_message("assistant"):
-                st.markdown(response)
+                st.markdown(style_response(response), unsafe_allow_html=True)
                 play_audio(audio_base64)
         else:
             # Stream response
@@ -158,7 +182,7 @@ if input_text:
                 response_placeholder = st.empty()
                 for chunk in conversation.stream(input_text):
                     response_text += chunk.get("response", "")
-                    response_placeholder.markdown(response_text)
+                    response_placeholder.markdown(style_response(response_text), unsafe_allow_html=True)
             # Generate audio asynchronously
             with st.spinner("آواز بنا رہا ہوں"):
                 audio_base64 = asyncio.run(async_text_to_speech(response_text))

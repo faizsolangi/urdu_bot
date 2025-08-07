@@ -10,8 +10,8 @@ from gtts import gTTS
 import base64
 from io import BytesIO
 import asyncio
-import aiohttp
 import streamlit.components.v1 as components
+from openai import OpenAI
 
 # Load environment variables
 load_dotenv()
@@ -26,7 +26,18 @@ llm = ChatOpenAI(
 
 # Define the system prompt for a kid-friendly Urdu letter tutor
 system_template = """
-تم 5 سال کے بچوں کے لیے اردو حروف کا ٹیوٹر ہو۔ بچہ انگریزی اور اردو ملا کر سوال پوچھ سکتا ہے، جیسے "What is ا?" یا "ب kya hai؟"، لیکن تم صرف آسان اور خالص اردو میں جواب دو۔ حروف تہجی کو بہت آسان اور مزے دار طریقے سے سکھاؤ، جیسے کہانی ہو۔ جانور، پھل یا کھلونوں کی چھوٹی چھوٹی مثالیں دو۔ مشکل الفاظ نہ استعمال کرو، جواب ایک یا دو جملوں میں رکھو۔ بچوں کی طرح چھوٹی چھوٹی باتیں کرو، جیسے "واہ، ا بہت مزے کا ہے!" یاد رکھو کہ بچے نے کون سے حروف سیکھے اور اگلا حرف تجویز کرو، جیسے "ا سیکھ لیا؟ اب ب سیکھیں!" اگر سوال حروف سے ہٹ کر ہو، تو نرمی سے کہو، "آؤ، حروف سیکھیں!" ہر جواب میں ایک مثال دو، جیسے "ا آم کی ہے۔" آخر میں مزے دار سوال پوچھو، جیسے "پرندے کا حرف سیکھیں؟" نامناسب مواد سے بچو، جیسے تشدد، مشکل باتیں، یا کوئی بھی چیز جو بچوں کے لیے ٹھیک نہ ہو۔
+You are a 5-year-old Urdu letter tutor teaching 5-year-old children. Speak like a playful 5-year-old friend in simple, fun Urdu. Follow these instructions exactly:
+
+- Accept questions in mixed English and Urdu, like "What is ا?" or "ب kya hai?", but always respond only in simple, pure Urdu.
+- Teach Urdu letters in a fun, story-like way to make learning exciting.
+- Include one short example with every answer, using animals, fruits, or toys, like "ا آم کی ہے!".
+- Never use difficult words; keep language very simple for 5-year-olds.
+- Keep responses to one or two short sentences.
+- Talk like a 5-year-old, using playful phrases like "واہ، ا بہت مزے کا ہے!".
+- Remember which letters the child has learned and suggest the next letter, like "ا سیکھ لیا؟ اب ب سیکھیں!".
+- If a question is not about letters, gently say, "آؤ، حروف سیکھیں!".
+- End every answer with a fun question, like "پرندے کا حرف سیکھیں؟".
+- Avoid any inappropriate content, such as violence, complex ideas, or anything not suitable for 5-year-olds.
 """
 
 # Set up the prompt template with history and input variables
@@ -62,23 +73,16 @@ async def async_text_to_speech(text):
         return base64.b64encode(audio_bytes.read()).decode('utf-8')
     return await loop.run_in_executor(None, generate_audio)
 
-# Asynchronous function for Whisper transcription
-async def async_transcribe_audio(audio_file_path, api_key):
-    async with aiohttp.ClientSession() as session:
-        form = aiohttp.FormData()
-        form.add_field('file', open(audio_file_path, 'rb'), filename='audio.wav')
-        form.add_field('model', 'whisper-1')
-        form.add_field('language', 'ur')
-        async with session.post(
-            'https://api.openai.com/v1/audio/transcriptions',
-            headers={'Authorization': f'Bearer {api_key}'},
-            data=form
-        ) as response:
-            if response.status == 200:
-                result = await response.json()
-                return result['text']
-            else:
-                raise Exception(f"Whisper API error: {await response.text()}")
+# Synchronous function for Whisper transcription
+def transcribe_audio(audio_file_path, api_key):
+    client = OpenAI(api_key=api_key)
+    with open(audio_file_path, "rb") as audio_file:
+        transcript = client.audio.transcriptions.create(
+            model="whisper-1",
+            file=audio_file,
+            language="ur"
+        )
+    return transcript.text
 
 # Custom HTML for auto-playing audio with fallback
 def play_audio(audio_base64):
@@ -92,7 +96,7 @@ def play_audio(audio_base64):
 
 # Streamlit app
 st.title("بچوں کے لیے اردو حروف ٹیوٹر")
-st.write("ہیلو! میں تمہارا اردو حروف کا ٹیچر ہوں۔ مجھ سے حروف کے بارے میں پوچھو، جیسے 'ا کیا ہے؟' یا 'What is ب?' بول کر یا ٹائپ کر کے پوچھو۔ آؤ، سیکھیں!")
+st.write("ہیلو! میں تمہارا 5 سال کا اردو حروف کا ٹیچر ہوں! مجھ سے حروف کے بارے میں پوچھو، جیسے 'ا کیا ہے؟' یا 'What is ب?' بول کر یا ٹائپ کر کے پوچھو۔ آؤ، سیکھیں!")
 
 # Display conversation history
 for message in st.session_state.messages:
@@ -123,7 +127,7 @@ if audio_bytes:
             f.write(audio_bytes)
         # Use OpenAI Whisper for transcription
         try:
-            input_text = asyncio.run(async_transcribe_audio(temp_file, os.getenv("OPENAI_API_KEY")))
+            input_text = transcribe_audio(temp_file, os.getenv("OPENAI_API_KEY"))
             st.session_state.messages.append({"role": "user", "content": input_text})
             with st.chat_message("user"):
                 st.markdown(input_text)

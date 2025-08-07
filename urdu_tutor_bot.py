@@ -62,6 +62,24 @@ async def async_text_to_speech(text):
         return base64.b64encode(audio_bytes.read()).decode('utf-8')
     return await loop.run_in_executor(None, generate_audio)
 
+# Asynchronous function for Whisper transcription
+async def async_transcribe_audio(audio_file_path, api_key):
+    async with aiohttp.ClientSession() as session:
+        form = aiohttp.FormData()
+        form.add_field('file', open(audio_file_path, 'rb'), filename='audio.wav')
+        form.add_field('model', 'whisper-1')
+        form.add_field('language', 'ur')
+        async with session.post(
+            'https://api.openai.com/v1/audio/transcriptions',
+            headers={'Authorization': f'Bearer {api_key}'},
+            data=form
+        ) as response:
+            if response.status == 200:
+                result = await response.json()
+                return result['text']
+            else:
+                raise Exception(f"Whisper API error: {await response.text()}")
+
 # Custom HTML for auto-playing audio with fallback
 def play_audio(audio_base64):
     audio_html = f"""
@@ -103,22 +121,13 @@ if audio_bytes:
         temp_file = "temp_audio.wav"
         with open(temp_file, "wb") as f:
             f.write(audio_bytes)
-        # Use OpenAI Whisper for transcription with timeout
+        # Use OpenAI Whisper for transcription
         try:
-            from openai import OpenAI
-            async with aiohttp.ClientSession() as session:
-                client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"), http_client=session)
-                with open(temp_file, "rb") as audio_file:
-                    transcript = client.audio.transcriptions.create(
-                        model="whisper-1",
-                        file=audio_file,
-                        language="ur"
-                    )
-                input_text = transcript.text
-                st.session_state.messages.append({"role": "user", "content": input_text})
-                with st.chat_message("user"):
-                    st.markdown(input_text)
-                os.remove(temp_file)
+            input_text = asyncio.run(async_transcribe_audio(temp_file, os.getenv("OPENAI_API_KEY")))
+            st.session_state.messages.append({"role": "user", "content": input_text})
+            with st.chat_message("user"):
+                st.markdown(input_text)
+            os.remove(temp_file)
         except Exception as e:
             st.error(f"معاف کرو، سمجھ نہ سکا: {str(e)}")
 elif user_input:

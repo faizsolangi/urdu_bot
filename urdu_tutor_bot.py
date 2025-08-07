@@ -13,11 +13,6 @@ import asyncio
 import streamlit.components.v1 as components
 from openai import OpenAI
 import re
-import logging
-
-# Set up logging for debugging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
 
 # Load environment variables
 load_dotenv()
@@ -45,7 +40,6 @@ You are a 5-year-old Urdu letter tutor teaching 5-year-old children. Speak like 
 - If a question is not about letters, gently say, "آؤ، حروف سیکھیں!".
 - End every answer with a fun question, like "پرندے کا حرف سیکھیں؟".
 - Avoid any inappropriate content, such as violence, complex ideas, or anything not suitable for 5-year-olds.
-- Do not include any formatting characters like ** or * in responses.
 """
 
 # Set up the prompt template with history and input variables
@@ -86,16 +80,13 @@ def transcribe_audio(audio_file_path, api_key):
     try:
         client = OpenAI(api_key=api_key)
         with open(audio_file_path, "rb") as audio_file:
-            logger.info(f"Transcribing audio file: {audio_file_path}")
             transcript = client.audio.transcriptions.create(
                 model="whisper-1",
                 file=audio_file,
                 language="ur"
             )
-        logger.info(f"Transcription successful: {transcript.text}")
         return transcript.text
     except Exception as e:
-        logger.error(f"Whisper transcription failed: {str(e)}")
         raise Exception(f"Whisper transcription failed: {str(e)}")
 
 # Custom HTML for auto-playing audio with fallback
@@ -110,17 +101,12 @@ def play_audio(audio_base64):
 
 # Function to style the letter and example word in big, bold text
 def style_response(response_text):
-    # Remove any ** or * to prevent Markdown issues
-    response_text = re.sub(r'\*+', '', response_text)
-    # Find the letter (single Urdu letter from ا to ے)
-    letter_match = re.search(r'\b[ا-ے]\b', response_text)
-    # Find the example word, excluding common words and ensuring it's a single Urdu word
-    word_match = re.search(r'\b(?!آؤ|سیکھیں|ہیلو|واہ|مزے|کیا|ہائیں|پرندے|حرف|اب|بہت|کی|ہے)\w+\b', response_text)
+    # Find the letter and example word using regex (assuming single Urdu letter and a word)
+    letter_match = re.search(r'[ا-ے]', response_text)
+    word_match = re.search(r'\b(?!آؤ|سیکھیں|ہیلو|واہ|مزے|کیا|ہائیں|پرندے|حرف|اب|بہت)\w+\b', response_text)
     
     letter = letter_match.group(0) if letter_match else ""
     word = word_match.group(0) if word_match else ""
-    
-    logger.info(f"Styling response - Letter: {letter}, Word: {word}, Original: {response_text}")
     
     # Style the letter and word in big, bold text
     if letter and word:
@@ -135,7 +121,7 @@ def style_response(response_text):
 # Streamlit app
 st.title("بچوں کے لیے اردو حروف ٹیوٹر")
 st.write("ہیلو! میں تمہارا 5 سال کا اردو حروف کا ٹیچر ہوں! مجھ سے حروف کے بارے میں پوچھو، جیسے 'ا کیا ہے؟' یا 'What is ب?' بول کر یا ٹائپ کر کے پوچھو۔ آؤ، سیکھیں!")
-st.write("نوٹ: اگر آواز کام نہ کرے، براہ کرم اپنے براؤزر کی مائیک کی اجازت چیک کریں یا سوال ٹائپ کریں۔")  # Removed **
+st.markdown("**نوٹ**: اگر آواز کام نہ کرے، براہ کرم اپنے براؤزر کی مائیک کی اجازت چیک کریں یا سوال ٹائپ کریں۔")
 
 # Display conversation history
 for message in st.session_state.messages:
@@ -156,12 +142,7 @@ try:
         pause_threshold=2.0,
         sample_rate=44100
     )
-    if audio_bytes:
-        logger.info("Audio recorded successfully")
-    else:
-        logger.warning("No audio bytes recorded")
 except Exception as e:
-    logger.error(f"Audio recorder failed: {str(e)}")
     st.error(f"آڈیو ریکارڈر ناکام ہوا: {str(e)}۔ براہ کرم براؤزر کی مائیک اجازت چیک کریں یا سوال ٹائپ کریں۔")
 
 # Text input
@@ -181,8 +162,8 @@ if audio_bytes:
             st.session_state.messages.append({"role": "user", "content": input_text})
             with st.chat_message("user"):
                 st.markdown(input_text)
+            os.remove(temp_file)
         except Exception as e:
-            logger.error(f"Audio processing error: {str(e)}")
             st.error(f"معاف کرو، سمجھ نہ سکا: {str(e)}۔ براہ کرم دوبارہ بولنے کی کوشش کریں یا سوال ٹائپ کریں۔")
         finally:
             if os.path.exists(temp_file):
@@ -226,5 +207,4 @@ if input_text:
                 "audio": audio_base64
             })
     except Exception as e:
-        logger.error(f"Response processing error: {str(e)}")
         st.error(f"معاف کرو، کچھ غلط ہو گیا: {str(e)}")

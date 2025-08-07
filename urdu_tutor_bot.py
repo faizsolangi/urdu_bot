@@ -77,14 +77,17 @@ async def async_text_to_speech(text):
 
 # Synchronous function for Whisper transcription
 def transcribe_audio(audio_file_path, api_key):
-    client = OpenAI(api_key=api_key)
-    with open(audio_file_path, "rb") as audio_file:
-        transcript = client.audio.transcriptions.create(
-            model="whisper-1",
-            file=audio_file,
-            language="ur"
-        )
-    return transcript.text
+    try:
+        client = OpenAI(api_key=api_key)
+        with open(audio_file_path, "rb") as audio_file:
+            transcript = client.audio.transcriptions.create(
+                model="whisper-1",
+                file=audio_file,
+                language="ur"
+            )
+        return transcript.text
+    except Exception as e:
+        raise Exception(f"Whisper transcription failed: {str(e)}")
 
 # Custom HTML for auto-playing audio with fallback
 def play_audio(audio_base64):
@@ -118,6 +121,7 @@ def style_response(response_text):
 # Streamlit app
 st.title("بچوں کے لیے اردو حروف ٹیوٹر")
 st.write("ہیلو! میں تمہارا 5 سال کا اردو حروف کا ٹیچر ہوں! مجھ سے حروف کے بارے میں پوچھو، جیسے 'ا کیا ہے؟' یا 'What is ب?' بول کر یا ٹائپ کر کے پوچھو۔ آؤ، سیکھیں!")
+st.markdown("**نوٹ**: اگر آواز کام نہ کرے، براہ کرم اپنے براؤزر کی مائیک کی اجازت چیک کریں یا سوال ٹائپ کریں۔")
 
 # Display conversation history
 for message in st.session_state.messages:
@@ -131,12 +135,15 @@ for message in st.session_state.messages:
 
 # Voice input
 st.write("اپنا سوال بولو:")
-audio_bytes = audio_recorder(
-    text="بولنے کے لیے کلک کرو",
-    energy_threshold=(100, 3000),
-    pause_threshold=2.0,
-    sample_rate=44100
-)
+try:
+    audio_bytes = audio_recorder(
+        text="بولنے کے لیے کلک کرو",
+        energy_threshold=(100, 3000),
+        pause_threshold=2.0,
+        sample_rate=44100
+    )
+except Exception as e:
+    st.error(f"آڈیو ریکارڈر ناکام ہوا: {str(e)}۔ براہ کرم براؤزر کی مائیک اجازت چیک کریں یا سوال ٹائپ کریں۔")
 
 # Text input
 user_input = st.chat_input("یا یہاں سوال ٹائپ کرو")
@@ -147,17 +154,20 @@ if audio_bytes:
     with st.spinner("تمہاری بات سن رہا ہوں"):
         # Save audio to temporary file
         temp_file = "temp_audio.wav"
-        with open(temp_file, "wb") as f:
-            f.write(audio_bytes)
-        # Use OpenAI Whisper for transcription
         try:
+            with open(temp_file, "wb") as f:
+                f.write(audio_bytes)
+            # Use OpenAI Whisper for transcription
             input_text = transcribe_audio(temp_file, os.getenv("OPENAI_API_KEY"))
             st.session_state.messages.append({"role": "user", "content": input_text})
             with st.chat_message("user"):
                 st.markdown(input_text)
             os.remove(temp_file)
         except Exception as e:
-            st.error(f"معاف کرو، سمجھ نہ سکا: {str(e)}")
+            st.error(f"معاف کرو، سمجھ نہ سکا: {str(e)}۔ براہ کرم دوبارہ بولنے کی کوشش کریں یا سوال ٹائپ کریں۔")
+        finally:
+            if os.path.exists(temp_file):
+                os.remove(temp_file)
 elif user_input:
     input_text = user_input
     st.session_state.messages.append({"role": "user", "content": input_text})

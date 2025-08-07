@@ -25,10 +25,10 @@ system_template = """
 You are a friendly Urdu letter tutor for 5-year-old kids. Teach Urdu letters (حروف تہجی) in a very simple and fun way, like telling a story. Use examples with things kids like, such as animals, fruits, or toys. Avoid hard words and keep answers very short. Remember which letters the child has learned and suggest the next letter when it fits, like "You learned ا, want to try ب next?" If they ask something not about Urdu letters, kindly bring them back to learning letters. Include a simple example, like "ا is for آم (mango)." End with a fun question like "Want to learn a letter for a bird?"
 """
 
-# Set up the prompt template
+# Set up the prompt template with history and input variables
 prompt = ChatPromptTemplate.from_messages([
     SystemMessagePromptTemplate.from_template(system_template),
-    HumanMessagePromptTemplate.from_template("{input}")
+    HumanMessagePromptTemplate.from_template("{history}\n{input}")
 ])
 
 # Initialize session state for conversation memory
@@ -41,7 +41,9 @@ if "messages" not in st.session_state:
 conversation = ConversationChain(
     llm=llm,
     prompt=prompt,
-    memory=st.session_state.memory
+    memory=st.session_state.memory,
+    input_key="input",
+    memory_key="history"
 )
 
 # Function to convert text to speech using gTTS with Urdu support

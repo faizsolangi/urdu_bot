@@ -22,7 +22,7 @@ llm = ChatOpenAI(
 
 # Define the system prompt for a kid-friendly Urdu letter tutor
 system_template = """
-You are a friendly Urdu letter tutor for 5-year-old kids. Teach Urdu letters (حروف تہجی) in a very simple and fun way, like telling a story. Use examples with things kids like, such as animals, fruits, or toys. Avoid hard words and keep answers very short. Remember which letters the child has learned and suggest the next letter when it fits, like "You learned ا, want to try ب next?" If they ask something not about Urdu letters, kindly bring them back to learning letters. Include a simple example, like "ا is for آم (mango)." End with a fun question like "Want to learn a letter for a bird?"
+تم ایک دوستانہ اردو حروف کا ٹیوٹر ہو جو 5 سال کے بچوں کے لیے ہے۔ اردو حروف تہجی کو بہت آسان اور مزے دار طریقے سے سکھاؤ، جیسے کوئی کہانی سنا رہے ہو۔ ایسی مثالیں استعمال کرو جو بچوں کو پسند ہوں، جیسے جانور، پھل، یا کھلونے۔ مشکل الفاظ سے بچو اور جوابات بہت چھوٹے رکھو۔ صرف خالص اردو استعمال کرو، انگریزی الفاظ یا انگریزی تلفظ سے بچو۔ بچوں کی طرح بات کرو، جیسے تم بھی ایک چھوٹا دوست ہو۔ یاد رکھو کہ بچے نے کون سے حروف سیکھے ہیں اور اگلا حرف تجویز کرو، جیسے "تم نے ا سیکھا، اب ب سیکھیں؟" اگر بچہ اردو حروف سے ہٹ کر کچھ پوچھے، تو نرمی سے اسے حروف سیکھنے کی طرف لاؤ۔ ہر جواب میں ایک آسان مثال دو، جیسے "ا آم کی طرح ہے۔" ہر جواب ایک مزے دار سوال کے ساتھ ختم کرو، جیسے "کیا تم پرندے کا حرف سیکھنا چاہتے ہو؟" نامناسب یا مشکل مواد سے مکمل طور پر بچو، جیسے تشدد، پیچیدہ تصورات، یا بچوں کے لیے غیر موزوں چیزیں۔
 """
 
 # Set up the prompt template with history and input variables
@@ -55,32 +55,33 @@ def text_to_speech(text):
     return audio_base64
 
 # Streamlit app
-st.title("Urdu Letter Tutor Bot for Kids")
-st.write("Hello! I'm your Urdu letter teacher. Ask me about Urdu letters by typing or using your microphone. Try asking 'What is ا?' or 'Tell me about ب.' Let's learn together.")
+st.title("بچوں کے لیے اردو حروف ٹیوٹر")
+st.write("ہیلو! میں تمہارا اردو حروف کا ٹیچر ہوں۔ مجھ سے اردو حروف کے بارے میں پوچھو، جیسے 'ا کیا ہے؟' یا 'ب کے بارے میں بتاؤ۔' تم ٹائپ کر سکتے ہو یا مائیک پر بول سکتے ہو۔ آؤ، مل کر سیکھیں۔")
 
 # Display conversation history
 for message in st.session_state.messages:
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
         if message["role"] == "assistant" and "audio" in message:
-            st.audio(f"data:audio/mp3;base64,{message['audio']}", format="audio/mp3")
+            # Auto-play audio
+            st.audio(f"data:audio/mp3;base64,{message['audio']}", format="audio/mp3", autoplay=True)
 
 # Voice input
-st.write("Record your question:")
+st.write("اپنا سوال بولو:")
 audio_bytes = audio_recorder(
-    text="Click to record",
+    text="بولنے کے لیے کلک کرو",
     energy_threshold=(100, 3000),
     pause_threshold=2.0,
     sample_rate=44100
 )
 
 # Text input
-user_input = st.chat_input("Or type your question here")
+user_input = st.chat_input("یا یہاں اپنا سوال ٹائپ کرو")
 
 # Process input (voice or text)
 input_text = None
 if audio_bytes:
-    with st.spinner("Listening to your question"):
+    with st.spinner("تمہاری بات سن رہا ہوں"):
         # Save audio to temporary file
         temp_file = "temp_audio.wav"
         with open(temp_file, "wb") as f:
@@ -101,7 +102,7 @@ if audio_bytes:
                 st.markdown(input_text)
             os.remove(temp_file)
         except Exception as e:
-            st.error(f"Sorry, I couldn't understand: {str(e)}")
+            st.error(f"معاف کرو، میں سمجھ نہ سکا: {str(e)}")
 elif user_input:
     input_text = user_input
     st.session_state.messages.append({"role": "user", "content": input_text})
@@ -111,9 +112,9 @@ elif user_input:
 # Process bot response
 if input_text:
     try:
-        with st.spinner("Thinking"):
+        with st.spinner("سوچ رہا ہوں"):
             response = conversation.run(input_text)
-        with st.spinner("Making audio"):
+        with st.spinner("آواز بنا رہا ہوں"):
             audio_base64 = text_to_speech(response)
         st.session_state.messages.append({
             "role": "assistant",
@@ -122,6 +123,7 @@ if input_text:
         })
         with st.chat_message("assistant"):
             st.markdown(response)
-            st.audio(f"data:audio/mp3;base64,{audio_base64}", format="audio/mp3")
+            # Auto-play audio for the response
+            st.audio(f"data:audio/mp3;base64,{audio_base64}", format="audio/mp3", autoplay=True)
     except Exception as e:
-        st.error(f"Sorry, something went wrong: {str(e)}")
+        st.error(f"معاف کرو، کچھ غلط ہو گیا: {str(e)}")

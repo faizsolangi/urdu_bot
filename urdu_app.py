@@ -12,6 +12,70 @@ import plotly.graph_objects as go
 from datetime import datetime, timedelta
 import random
 import time
+from streamlit.components.v1 import html
+
+# ===== VOICE FUNCTIONALITY =====
+def create_voice_button(text, voice_id="voice_btn"):
+    """Create a simple voice button using Python/Streamlit"""
+    button_key = f"voice_{voice_id}"
+    
+    if st.button(f"🔊 Play: {text[:20]}{'...' if len(text) > 20 else ''}", key=button_key):
+        # Show text being spoken
+        st.info(f"🔊 Speaking: {text}")
+        
+        # Simple HTML audio alert
+        html_audio = f"""
+        <script>
+        if ('speechSynthesis' in window) {{
+            var utterance = new SpeechSynthesisUtterance("{text.replace('"', '').replace("'", '')}");
+            utterance.rate = 0.7;
+            utterance.pitch = 1.1;
+            utterance.lang = 'en-US';
+            speechSynthesis.speak(utterance);
+        }}
+        </script>
+        """
+        html(html_audio, height=0)
+        
+    return True
+
+def create_guided_practice_section():
+    """Create guided practice buttons using Streamlit"""
+    st.markdown("### 🎤 Voice Practice")
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        if st.button("🎤 Start Guided Practice", key="guided_practice"):
+            st.success("🎤 Starting guided practice...")
+            practice_text = "Let's practice Urdu letters together! Listen carefully and repeat after me."
+            html(f"""
+            <script>
+            if ('speechSynthesis' in window) {{
+                var utterance = new SpeechSynthesisUtterance("{practice_text}");
+                utterance.rate = 0.8;
+                utterance.pitch = 1.2;
+                utterance.lang = 'en-US';
+                speechSynthesis.speak(utterance);
+            }}
+            </script>
+            """, height=0)
+    
+    with col2:
+        if st.button("📚 Recite Alphabet", key="recite_alphabet"):
+            st.success("📚 Reciting complete Urdu alphabet...")
+            recite_text = "Now I will recite the complete Urdu alphabet: Alif, Bay, Pay, Tay, Ttay, Say, Jeem, Chay, Hay, Khay, Daal, Ddaal, Zaal, Ray, Rray, Zay, Zhay, Seen, Sheen, Swaad, Zwaad, Toay, Zoay, Ain, Ghain, Fay, Qaaf, Kaaf, Gaaf, Laam, Meem, Noon, Noon Ghunna, Waao, Hay, Hay Dokhashmay, Hamza, Yay"
+            html(f"""
+            <script>
+            if ('speechSynthesis' in window) {{
+                var utterance = new SpeechSynthesisUtterance("{recite_text}");
+                utterance.rate = 0.6;
+                utterance.pitch = 1.1;
+                utterance.lang = 'en-US';
+                speechSynthesis.speak(utterance);
+            }}
+            </script>
+            """, height=0)
 
 # ===== URDU ALPHABET DATA =====
 URDU_ALPHABET_DATA = {
@@ -696,9 +760,15 @@ def show_home_page():
                 else:
                     st.error("برائے کرم اپنا نام لکھیں! (Please enter your name!)")
     else:
-        # Welcome message
+        # Welcome message with voice
         st.markdown(f"### 🎉 خوش آمدید {st.session_state.user_name}!")
         st.markdown(f"### Welcome back, {st.session_state.user_name}!")
+        
+        # Voice welcome message
+        create_voice_button(
+            f"Welcome back {st.session_state.user_name}! Let's learn Urdu letters together!", 
+            voice_id="welcome_msg"
+        )
         
         # Progress overview
         progress_data = st.session_state.progress_tracker.get_progress()
@@ -801,14 +871,24 @@ def show_letter_detail_page():
             st.session_state.current_page = "letters"
             st.rerun()
     
-    # Letter display
+    # Letter display with voice
     st.markdown(f"""
     <div style="text-align: center; padding: 30px; background: linear-gradient(135deg, {letter_data['color']}20, {letter_data['color']}40); border-radius: 20px; margin: 20px 0;">
         <div style="font-size: 8em; margin-bottom: 20px;">{letter_data['letter']}</div>
         <div style="font-size: 3em; font-weight: bold; margin-bottom: 10px;">{letter_data['name']}</div>
-        <div style="font-size: 2em; color: #666;">Sound: "{letter_data['sound']}"</div>
+        <div style="font-size: 2em; color: #666; margin-bottom: 20px;">Sound: "{letter_data['sound']}"</div>
     </div>
     """, unsafe_allow_html=True)
+    
+    # Voice buttons for letter
+    st.markdown("### 🔊 آواز سنیں (Listen to Sounds)")
+    
+    col1, col2 = st.columns(2)
+    with col1:
+        create_voice_button(letter_data['name'], voice_id=f"letter_{letter_data['id']}")
+    
+    with col2:
+        create_voice_button(letter_data['sound'], voice_id=f"sound_{letter_data['id']}")
     
     # Words with this letter
     st.markdown("### اس حرف سے بننے والے الفاظ (Words starting with this letter):")
@@ -832,8 +912,11 @@ def show_letter_detail_page():
             """)
         
         with col3:
-            if st.button("🔊", key=f"sound_{word_data['word']}", help="Play sound (coming soon!)"):
-                st.info(f"Sound: {word_data['english']}")
+            # Voice button for word
+            create_voice_button(
+                f"{word_data['word']} {word_data['english']}", 
+                voice_id=f"word_{letter_data['id']}_{word_data['english'].replace(' ', '_')}"
+            )
     
     # Mark as learned
     progress_data = st.session_state.progress_tracker.get_progress()
@@ -871,6 +954,10 @@ def show_games_page():
             st.rerun()
     
     st.markdown("### کھیل کا انتخاب کریں (Choose a game):")
+    
+    # Add guided practice section
+    st.markdown("---")
+    create_guided_practice_section()
     
     # Letter Matching Game
     with st.expander("🎯 حروف ملانا (Letter Matching Game)", expanded=True):

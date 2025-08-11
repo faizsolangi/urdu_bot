@@ -30,7 +30,7 @@ def create_voice_button(text, voice_id="voice_btn"):
             var utterance = new SpeechSynthesisUtterance("{text.replace('"', '').replace("'", '')}");
             utterance.rate = 0.7;
             utterance.pitch = 1.1;
-            utterance.lang = 'en-US';
+            utterance.lang = 'ur-PK';
             speechSynthesis.speak(utterance);
         }}
         </script>

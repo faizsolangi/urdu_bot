@@ -14,6 +14,8 @@ import random
 import time
 from io import BytesIO
 from gtts import gTTS
+import base64
+from streamlit.components.v1 import html as st_html
 
 # ===== VOICE FUNCTIONALITY =====
 def _tts_generate_audio_bytes(text: str, lang: str = "ur") -> bytes:
@@ -30,16 +32,67 @@ def _tts_generate_audio_bytes(text: str, lang: str = "ur") -> bytes:
         return b""
 
 
+def _render_autoplay_audio(audio_bytes: bytes):
+    """Render hidden HTML5 audio element that autoplays once without showing any UI."""
+    if not audio_bytes:
+        return
+    b64 = base64.b64encode(audio_bytes).decode("ascii")
+    st_html(
+        f"""
+        <div style='display:none;'>
+            <audio src="data:audio/mp3;base64,{b64}" autoplay></audio>
+        </div>
+        """,
+        height=0,
+    )
+
+
+def _render_autoplay_sequence(audio_bytes_list, delay_ms_between: int = 1200):
+    """Autoplay multiple audios in sequence, hidden from view."""
+    if not audio_bytes_list:
+        return
+    ids = [f"aud_{i}" for i in range(len(audio_bytes_list))]
+    sources = [base64.b64encode(b).decode("ascii") for b in audio_bytes_list if b]
+    if not sources:
+        return
+    audios_html = "\n".join(
+        [f"<audio id='{ids[i]}' src='data:audio/mp3;base64,{sources[i]}' preload='auto'></audio>" for i in range(len(sources))]
+    )
+    st_html(
+        f"""
+        <div style='display:none;'>
+            {audios_html}
+            <script>
+            (function() {{
+                const ids = {ids};
+                let i = 0;
+                function playNext() {{
+                    if (i >= ids.length) return;
+                    const a = document.getElementById(ids[i]);
+                    if (!a) return;
+                    a.currentTime = 0;
+                    a.play().catch(function(){{}});
+                    i++;
+                    if (i < ids.length) {{
+                        setTimeout(playNext, {delay_ms_between});
+                    }}
+                }}
+                setTimeout(playNext, 50);
+            }})();
+            </script>
+        </div>
+        """,
+        height=0,
+    )
+
+
 def create_voice_button(text, voice_id: str = "voice_btn", lang: str = "ur"):
     """Create a simple voice button using Streamlit with native Urdu TTS."""
     button_key = f"voice_{voice_id}"
     if st.button(f"🔊 سنیں", key=button_key):
         st.toast("🔊 آواز چل رہی ہے", icon="🔊")
         audio_bytes = _tts_generate_audio_bytes(text, lang=lang)
-        if audio_bytes:
-            st.audio(audio_bytes, format="audio/mp3")
-        else:
-            st.warning("آواز چلانے میں مسئلہ پیش آیا۔ دوبارہ کوشش کریں۔")
+        _render_autoplay_audio(audio_bytes)
     return True
 
 
@@ -55,9 +108,7 @@ def create_guided_practice_section():
             practice_text = (
                 "آئیے مل کر اردو حروف کی مشق کرتے ہیں۔ غور سے سنیں اور میرے بعد دہرائیں۔"
             )
-            audio_bytes = _tts_generate_audio_bytes(practice_text, lang="ur")
-            if audio_bytes:
-                st.audio(audio_bytes, format="audio/mp3")
+            _render_autoplay_audio(_tts_generate_audio_bytes(practice_text, lang="ur"))
 
     with col2:
         if st.button("📚 مکمل حروف پڑھیں", key="recite_alphabet"):
@@ -65,9 +116,7 @@ def create_guided_practice_section():
             recite_text = (
                 "اب میں مکمل اردو حروف پڑھوں گا: الف، بے، پے، تے، ٹے، ثے، جیم، چے، حے، خے، دال، ڈال، ذال، رے، ڑے، زے، ژے، سین، شین، صاد، ضاد، طے، ظے، عین، غین، فے، قاف، کاف، گاف، لام، میم، نون، نون غنہ، واؤ، ہے، ھے دو چشمی، ہمزہ، یے"
             )
-            audio_bytes = _tts_generate_audio_bytes(recite_text, lang="ur")
-            if audio_bytes:
-                st.audio(audio_bytes, format="audio/mp3")
+            _render_autoplay_audio(_tts_generate_audio_bytes(recite_text, lang="ur"))
 
 
 # ===== URDU ALPHABET DATA =====
@@ -891,6 +940,17 @@ def show_letter_detail_page():
     # Voice buttons for letter (Urdu TTS)
     st.markdown("### 🔊 آواز سنیں (Listen to Sounds)")
 
+    # Auto-play letter and its example words once when opening this detail page
+    if st.session_state.get('auto_played_letter_id') != letter_data['id']:
+        audio_sequence = []
+        # letter first
+        audio_sequence.append(_tts_generate_audio_bytes(f"{letter_data['letter']}", lang="ur"))
+        # then words
+        for w in letter_data.get('words', [])[:3]:
+            audio_sequence.append(_tts_generate_audio_bytes(w['word'], lang="ur"))
+        _render_autoplay_sequence([a for a in audio_sequence if a], delay_ms_between=1400)
+        st.session_state['auto_played_letter_id'] = letter_data['id']
+
     col1, col2 = st.columns(2)
     with col1:
         create_voice_button(f"یہ حرف {letter_data['letter']} ہے۔", voice_id=f"letter_{letter_data['id']}")
@@ -926,7 +986,8 @@ def show_letter_detail_page():
                 <strong>{word_data['meaning']}</strong><br>
                 <em>({word_data['english']})</em>
             </div>
-            """
+            """,
+                unsafe_allow_html=True,
             )
 
         with col3:
@@ -969,6 +1030,11 @@ def _reset_game_state(key: str):
 def show_games_page():
     """Display the games page"""
     st.title("🎮 کھیل اور سرگرمیاں (Games & Activities)")
+    
+    # Auto guide once per session on games page load
+    if not st.session_state.get('games_guide_played'):
+        _render_autoplay_audio(_tts_generate_audio_bytes("اپنا پسندیدہ کھیل منتخب کریں اور مزے کریں۔", lang="ur"))
+        st.session_state['games_guide_played'] = True
 
     # Navigation
     col1, col2, col3 = st.columns([1, 2, 1])
@@ -1103,12 +1169,12 @@ def show_games_page():
         st.markdown("#### 🔊 آواز سنیں")
         # Speak: "کون سا حرف ہے؟" then speak the letter itself
         if st.button("▶️ آواز چلائیں"):
-            audio = _tts_generate_audio_bytes("یہ کون سا حرف ہے؟", lang="ur")
-            audio2 = _tts_generate_audio_bytes(f"{target_letter['letter']}", lang="ur")
-            if audio:
-                st.audio(audio, format="audio/mp3")
-            if audio2:
-                st.audio(audio2, format="audio/mp3")
+            # autoplay a short prompt then the target letter
+            seq = [
+                _tts_generate_audio_bytes("یہ کون سا حرف ہے؟", lang="ur"),
+                _tts_generate_audio_bytes(f"{target_letter['letter']}", lang="ur"),
+            ]
+            _render_autoplay_sequence(seq, delay_ms_between=900)
 
         options = [l['letter'] for l in sg['letters']]
         choice = st.radio("صحیح حرف منتخب کریں:", options=options, horizontal=True, key=f"sg_choice_{sg['round']}")
